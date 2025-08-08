@@ -1,4 +1,3 @@
-// server.js — Express backend with Groq AI and Gmail SMTP email sending
 import express from "express";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
@@ -40,26 +39,33 @@ async function generateWithGroq(prompt) {
   });
 
   if (!res.ok) {
-    throw new Error("Groq error: " + (await res.text()));
+    const errorText = await res.text();
+    console.error("Groq API error response:", errorText);
+    throw new Error("Groq API error: " + errorText);
   }
-  const data = await res.json();
+
+  // Try to parse JSON safely
+  let data;
+  try {
+    data = await res.json();
+  } catch (e) {
+    const text = await res.text();
+    console.error("Failed to parse JSON from Groq response:", text);
+    throw new Error("Invalid JSON response from Groq API");
+  }
+
   return data.choices?.[0]?.message?.content?.trim() || "No content generated";
 }
 
-// Generate email subject using Groq AI
 async function generateEmailSubject(prompt) {
   const subjectPrompt = `Generate a short, clear subject line for this email request:\n\n${prompt}`;
   return generateWithGroq(subjectPrompt);
 }
 
-// Generate email body using Groq AI
 async function generateEmailBody(prompt) {
   return generateWithGroq(prompt);
 }
 
-/* ---------- API ROUTES ---------- */
-
-// Generate email subject and body
 app.post("/api/generate", async (req, res) => {
   try {
     const { prompt } = req.body;
@@ -77,7 +83,6 @@ app.post("/api/generate", async (req, res) => {
   }
 });
 
-// Send email using Gmail SMTP via nodemailer
 app.post("/api/send", async (req, res) => {
   try {
     const { recipients, subject, body } = req.body;
@@ -122,7 +127,6 @@ app.post("/api/send", async (req, res) => {
   }
 });
 
-/* ---------- SERVER ---------- */
 const port = process.env.PORT || 3000;
 app.get("/", (req, res) =>
   res.sendFile(path.join(__dirname, "public", "index.html"))
