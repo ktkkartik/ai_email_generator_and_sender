@@ -19,7 +19,10 @@ async function generateWithGroq(prompt) {
   const key = process.env.GROQ_API_KEY;
   if (!key) throw new Error("Missing GROQ_API_KEY in env");
 
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  // Corrected API URL (assuming Groq's official endpoint; update if different)
+  const url = "https://api.groq.ai/openai/v1/chat/completions";
+
+  const res = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -43,6 +46,19 @@ async function generateWithGroq(prompt) {
     console.error("Groq API error response:", errorText);
     throw new Error("Groq API error: " + errorText);
   }
+
+  const responseText = await res.text();
+
+  try {
+    const data = JSON.parse(responseText);
+    // Assuming data.choices[0].message.content contains the generated email
+    return data.choices?.[0]?.message?.content || "";
+  } catch (err) {
+    console.error("Failed to parse JSON response from Groq API:", responseText);
+    throw new Error("Invalid JSON response from Groq API");
+  }
+}
+
 
   // Try to parse JSON safely
   let data;
