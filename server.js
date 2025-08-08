@@ -19,7 +19,7 @@ async function generateWithGroq(prompt) {
   const key = process.env.GROQ_API_KEY;
   if (!key) throw new Error("Missing GROQ_API_KEY in environment variables");
 
-  const url = "https://api.groq.com/openai/v1/chat/completions";
+  const url = "https://api.groq.ai/openai/v1/chat/completions";
 
   const res = await fetch(url, {
     method: "POST",
