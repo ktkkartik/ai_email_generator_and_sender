@@ -14,13 +14,12 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// Generate email body using Groq AI
+// Generate text using Groq AI
 async function generateWithGroq(prompt) {
   const key = process.env.GROQ_API_KEY;
-  if (!key) throw new Error("Missing GROQ_API_KEY in env");
+  if (!key) throw new Error("Missing GROQ_API_KEY in environment variables");
 
-  // Corrected API URL (assuming Groq's official endpoint; update if different)
-  const url = "https://api.groq.ai/openai/v1/chat/completions";
+  const url = "https://api.groq.com/openai/v1/chat/completions";
 
   const res = await fetch(url, {
     method: "POST",
@@ -29,7 +28,7 @@ async function generateWithGroq(prompt) {
       Authorization: `Bearer ${key}`,
     },
     body: JSON.stringify({
-      model: "llama3-8b-8192",
+      model: "llama-3.3-70b-versatile", // use model from docs, update if needed
       messages: [
         {
           role: "system",
@@ -47,30 +46,14 @@ async function generateWithGroq(prompt) {
     throw new Error("Groq API error: " + errorText);
   }
 
-  const responseText = await res.text();
-
   try {
-    const data = JSON.parse(responseText);
-    // Assuming data.choices[0].message.content contains the generated email
-    return data.choices?.[0]?.message?.content || "";
+    const data = await res.json();
+    return data.choices?.[0]?.message?.content?.trim() || "No content generated";
   } catch (err) {
-    console.error("Failed to parse JSON response from Groq API:", responseText);
-    throw new Error("Invalid JSON response from Groq API");
-  }
-}
-
-
-  // Try to parse JSON safely
-  let data;
-  try {
-    data = await res.json();
-  } catch (e) {
     const text = await res.text();
-    console.error("Failed to parse JSON from Groq response:", text);
+    console.error("Failed to parse JSON response from Groq API:", text);
     throw new Error("Invalid JSON response from Groq API");
   }
-
-  return data.choices?.[0]?.message?.content?.trim() || "No content generated";
 }
 
 async function generateEmailSubject(prompt) {
@@ -81,6 +64,8 @@ async function generateEmailSubject(prompt) {
 async function generateEmailBody(prompt) {
   return generateWithGroq(prompt);
 }
+
+/* ---------- API ROUTES ---------- */
 
 app.post("/api/generate", async (req, res) => {
   try {
@@ -103,13 +88,13 @@ app.post("/api/send", async (req, res) => {
   try {
     const { recipients, subject, body } = req.body;
     if (!recipients || !body)
-      return res.status(400).json({ error: "Missing fields" });
+      return res.status(400).json({ error: "Missing recipients or body" });
 
     const GMAIL_USER = process.env.GMAIL_USER;
     const GMAIL_APP_PASS = process.env.GMAIL_APP_PASS;
 
     if (!GMAIL_USER || !GMAIL_APP_PASS) {
-      return res.status(500).json({ error: "Gmail SMTP credentials missing in env" });
+      return res.status(500).json({ error: "Gmail SMTP credentials missing in environment variables" });
     }
 
     const transporter = nodemailer.createTransport({
@@ -142,6 +127,39 @@ app.post("/api/send", async (req, res) => {
     res.status(500).json({ error: err.message || String(err) });
   }
 });
+
+/* Uncomment to enable this test route for debugging Groq API connectivity */
+
+app.get("/api/test-groq", async (req, res) => {
+  try {
+    const key = process.env.GROQ_API_KEY;
+    if (!key) return res.status(500).send("Missing GROQ_API_KEY");
+
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b-versatile",
+        messages: [{ role: "user", content: "Hello, test" }],
+      }),
+    });
+
+    const text = await response.text();
+
+    if (!response.ok) {
+      return res.status(response.status).send(`Error from Groq API: ${text}`);
+    }
+
+    const data = JSON.parse(text);
+    res.json(data);
+  } catch (error) {
+    res.status(500).send("Error: " + error.message);
+  }
+});
+
 
 const port = process.env.PORT || 3000;
 app.get("/", (req, res) =>
