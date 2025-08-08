@@ -9,14 +9,25 @@ async function api(path, data) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  return res.json();
+
+  const text = await res.text();
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    console.error(`Non-JSON response from /api/${path}:`, text);
+    throw new Error(`Invalid JSON response: ${text}`);
+  }
 }
 
 generateBtn.onclick = async () => {
   statusEl.textContent = "Generating...";
   try {
     const prompt = $("prompt").value;
-    if (!prompt) { statusEl.textContent = "Enter a prompt first."; return; }
+    if (!prompt) {
+      statusEl.textContent = "Enter a prompt first.";
+      return;
+    }
     const r = await api("generate", { prompt });
     if (r.error) {
       statusEl.textContent = "Error: " + r.error;
@@ -25,7 +36,7 @@ generateBtn.onclick = async () => {
     // fill subject automatically with short first line heuristic
     const email = r.email || "";
     $("emailBody").value = email;
-    const firstLine = email.split("\n").find(l => l.trim());
+    const firstLine = email.split("\n").find((l) => l.trim());
     if (firstLine) $("subject").value = firstLine.slice(0, 80);
     statusEl.textContent = "Generated — you may edit before sending.";
   } catch (err) {
@@ -40,7 +51,10 @@ sendBtn.onclick = async () => {
     const recipients = $("recipients").value;
     const subject = $("subject").value;
     const body = $("emailBody").value;
-    if (!recipients || !body) { statusEl.textContent = "Recipients and body are required."; return; }
+    if (!recipients || !body) {
+      statusEl.textContent = "Recipients and body are required.";
+      return;
+    }
     const r = await api("send", { recipients, subject, body });
     if (r.error) statusEl.textContent = "Send error: " + r.error;
     else statusEl.textContent = "Email sent successfully.";
